@@ -2,6 +2,7 @@ import { assetUrl, type ModelEntry } from '../catalog';
 import { fitCameraViewport, registerPoseSmoothing } from './camera';
 import { ModelLoader, type LoadState } from './model-loader';
 import type { Scene } from './types';
+import { marker as target } from './marker';
 
 let scripts: Promise<void> | undefined;
 function loadScript(src: string) {
@@ -40,11 +41,11 @@ export class ARRuntime {
     scene.setAttribute('xr-mode-ui', 'enabled: false');
     scene.setAttribute('renderer', 'alpha: true; antialias: auto');
     scene.setAttribute('gltf-model', `dracoDecoderPath: ${assetUrl('vendor/draco/')}`);
-    scene.setAttribute('arjs', 'sourceType: webcam; sourceWidth: 1280; sourceHeight: 960; detectionMode: mono; maxDetectionRate: 30; debugUIEnabled: false');
+    scene.setAttribute('arjs', `sourceType: webcam; sourceWidth: 1280; sourceHeight: 960; detectionMode: mono; patternRatio: ${target.patternRatio}; maxDetectionRate: 30; debugUIEnabled: false`);
     scene.innerHTML = `
       <a-entity light="type: ambient; intensity: 1.1"></a-entity>
       <a-entity light="type: directional; intensity: 2" position="1 3 2"></a-entity>
-      <a-marker type="pattern" url="${assetUrl('markers/hiro.patt')}" emitevents="true" smooth="false" smooth-marker-pose>
+      <a-marker type="pattern" url="${target.patternUrl}" emitevents="true" smooth="false" smooth-marker-pose>
         <a-entity id="model-frame" visible="false"><a-entity id="locomotive-model"></a-entity></a-entity>
       </a-marker>
       <a-entity camera></a-entity>`;
@@ -59,7 +60,7 @@ export class ARRuntime {
         queueMicrotask(() => {
           if (this.paused) this.scene.systems.arjs._arSession.arSource.ready = false;
         });
-      } else onStatus('Наведите камеру на метку Hiro. Держите всю рамку в кадре.');
+      } else onStatus('Наведите камеру на QR-метку ТМХ. Держите всю чёрную рамку в кадре.');
     });
     window.addEventListener('camera-error', () => {
       cameraSettled();

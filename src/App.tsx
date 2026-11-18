@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
-import { assetUrl, models, type ModelEntry } from './catalog';
+import { models, type ModelEntry } from './catalog';
+import { marker } from './ar/marker';
 import { Catalog } from './components/Catalog';
 import { LoadProgress } from './components/LoadProgress';
 import type { ARRuntime } from './ar/runtime';
@@ -55,12 +56,12 @@ export default function App() {
   return <>
     {!active && <main id="intro">
       <header><span className="label">ДОПОЛНЕННАЯ РЕАЛЬНОСТЬ</span><h1>Модели в AR</h1>
-        <p>Выберите модель, откройте камеру и наведите её на метку. Рассмотрите технику с разных сторон.</p></header>
+        <p>Откройте сайт по QR-коду, выберите модель и наведите камеру на эту же карточку.</p></header>
       <Catalog selected={selected.id} onSelect={select} disabled={starting} />
       <section className="marker-card" aria-labelledby="marker-title">
-        <img width="175" height="175" src={assetUrl('markers/hiro.png')} alt="Чёрно-белая метка Hiro" />
-        <div><h2 id="marker-title">Подготовьте метку Hiro</h2><p>Распечатайте её или откройте на другом экране.</p>
-          <a href={assetUrl('markers/hiro.png')} target="_blank" rel="noopener">Открыть метку ↗</a></div>
+        <img width="175" height="175" src={marker.imageUrl} alt="QR-код и надпись ТМХ внутри чёрной рамки" />
+        <div><h2 id="marker-title">{marker.name}</h2><p>Одна карточка открывает сайт и размещает модель. Сохраните всю рамку и белое поле при печати.</p>
+          <a href={marker.imageUrl} target="_blank" rel="noopener">Открыть метку для печати ↗</a></div>
       </section>
       <button id="start" className="primary" disabled={starting} onClick={start}>{starting ? 'Запускаем AR…' : `Открыть камеру · ${selected.name}`}</button>
       <p className="hint">{load.phase === 'ready' ? 'Загруженная модель сохранена до смены модели или перезагрузки страницы.' : 'Модель загрузится после запуска камеры.'}</p>
