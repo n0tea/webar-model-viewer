@@ -4,6 +4,8 @@
 
 [Открыть приложение](https://n0tea.github.io/webar-model-viewer/) · [Публикации](https://github.com/n0tea/webar-model-viewer/actions)
 
+Для сравнения доступна [версия до каталога](https://n0tea.github.io/webar-model-viewer/before-catalog/). В `public/before-catalog/` сохранены без изменений HTML, CSS, JavaScript, GLB и декодер Draco из коммита `014d663`. Vite копирует эту папку в сборку как статические файлы. Эта версия использует прежнюю загрузку A-Frame и AR.js через внешние адреса; основное приложение остаётся по корневому адресу.
+
 ## Разработка
 
 Нужен Node.js (рекомендуется 24 LTS) с npm. В терминале VS Code, открытом в папке проекта:
