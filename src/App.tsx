@@ -71,7 +71,7 @@ export default function App() {
       <div className="camera-top">
         <div className="camera-header"><div><strong>{selected.name}</strong><span id="model-caption">{load.phase === 'ready' ? 'Модель загружена' : load.phase === 'error' ? 'Ошибка загрузки' : 'Загружаем модель…'}</span></div>
           <button id="exit" className="primary" ref={exit} onClick={close}>Закрыть камеру</button></div>
-        <button className="catalog-toggle" aria-expanded={catalogOpen} aria-controls="camera-catalog" onClick={() => setCatalogOpen(!catalogOpen)}>{catalogOpen ? 'Скрыть каталог ↑' : 'Выбрать модель ↓'}</button>
+        <button className="catalog-toggle" aria-expanded={catalogOpen} aria-controls="camera-catalog" onClick={() => setCatalogOpen(!catalogOpen)}>{catalogOpen ? 'Скрыть каталог' : 'Выбрать модель'}</button>
         {catalogOpen && <div id="camera-catalog"><Catalog selected={selected.id} onSelect={select} compact /></div>}
         <LoadProgress state={load} onRetry={() => void runtime.current?.select(selected)} />
       </div>

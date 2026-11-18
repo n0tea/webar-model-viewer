@@ -9,7 +9,7 @@ export function Catalog({ selected, onSelect, compact = false, disabled = false 
       {models.map((model) => <button key={model.id} type="button" className="model-card"
         aria-pressed={selected === model.id} disabled={disabled} onClick={() => onSelect(model)}>
         <div className="model-preview"><img src={model.preview} alt={`3D-модель ${model.name}`} width="800" height="450" />
-          <span className="selection-badge">{selected === model.id ? '✓ Выбрано' : 'Выбрать'}</span></div>
+          <span className="selection-badge">{selected === model.id ? 'Выбрано' : 'Выбрать'}</span></div>
         <div className="model-description"><div><strong>{model.name}</strong><p>{model.description}</p></div>
           <span className="file-size">{formatBytes(model.bytes)}<small>GLB</small></span></div>
       </button>)}
