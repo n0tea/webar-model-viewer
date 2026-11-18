@@ -24,7 +24,7 @@ export default function App() {
   async function start() {
     if (starting) return;
     setStarting(true);
-    setIntroStatus('Загружаем режим AR…');
+    setIntroStatus('');
     try {
       const { prepareAR, ARRuntime } = await import('./ar/runtime');
       await prepareAR();
@@ -32,6 +32,7 @@ export default function App() {
         setCameraStatus('Включаем камеру…');
         setActive(true);
         if (!await runtime.current.resume()) return;
+        setCameraStatus('Поместите метку в кадр.');
       } else {
         runtime.current = new ARRuntime(setLoad, setCameraStatus);
         setActive(true);

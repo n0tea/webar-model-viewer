@@ -68,7 +68,7 @@ export class ARRuntime {
     });
     const marker = scene.querySelector('a-marker')!;
     marker.addEventListener('markerFound', () => onStatus('Метка найдена. Рассмотрите модель с разных сторон.'));
-    marker.addEventListener('markerLost', () => onStatus('Верните метку целиком в кадр.'));
+    marker.addEventListener('markerLost', () => onStatus('Поместите метку в кадр.'));
     this.ready = new Promise((resolve) => {
       scene.addEventListener('renderstart', () => queueMicrotask(() => {
         fitCameraViewport(scene);
