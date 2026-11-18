@@ -27,8 +27,11 @@ export async function prepareAR() {
 export class ARRuntime {
   readonly scene: Scene;
   private loader?: ModelLoader;
-  private stopped = false;
-  private listeners = new AbortController();
+  private paused = false;
+  private cameraAttempt = 0;
+  private selectedModel?: string;
+  private firstCamera: Promise<void>;
+  private videoInitialized = false;
   private ready: Promise<void>;
 
   constructor(onLoad: (state: LoadState) => void, onStatus: (status: string) => void) {
@@ -45,17 +48,34 @@ export class ARRuntime {
         <a-entity id="model-frame" visible="false"><a-entity id="locomotive-model"></a-entity></a-entity>
       </a-marker>
       <a-entity camera></a-entity>`;
-    const options = { signal: this.listeners.signal };
-    window.addEventListener('arjs-video-loaded', () => onStatus('Наведите камеру на метку Hiro. Держите всю рамку в кадре.'), options);
-    window.addEventListener('camera-error', () => onStatus('Камера недоступна. Разрешите доступ в настройках сайта или закройте приложение, занявшее камеру.'), options);
+    let cameraSettled!: () => void;
+    this.firstCamera = new Promise((resolve) => { cameraSettled = resolve; });
+    window.addEventListener('arjs-video-loaded', () => {
+      this.videoInitialized = true;
+      cameraSettled();
+      if (this.paused) {
+        this.stopVideo();
+        // AR.js sets source.ready after dispatching this event.
+        queueMicrotask(() => {
+          if (this.paused) this.scene.systems.arjs._arSession.arSource.ready = false;
+        });
+      } else onStatus('Наведите камеру на метку Hiro. Держите всю рамку в кадре.');
+    });
+    window.addEventListener('camera-error', () => {
+      cameraSettled();
+      onStatus('Камера недоступна. Разрешите доступ в настройках сайта или закройте приложение, занявшее камеру.');
+    });
     const marker = scene.querySelector('a-marker')!;
-    marker.addEventListener('markerFound', () => onStatus('Метка найдена. Рассмотрите модель с разных сторон.'), options);
-    marker.addEventListener('markerLost', () => onStatus('Верните метку целиком в кадр.'), options);
+    marker.addEventListener('markerFound', () => onStatus('Метка найдена. Рассмотрите модель с разных сторон.'));
+    marker.addEventListener('markerLost', () => onStatus('Верните метку целиком в кадр.'));
     this.ready = new Promise((resolve) => {
       scene.addEventListener('renderstart', () => queueMicrotask(() => {
-        if (this.stopped) return;
         fitCameraViewport(scene);
-        this.loader = new ModelLoader(scene, onLoad);
+        this.loader = new ModelLoader(scene, (state) => {
+          if (state.phase === 'error') this.selectedModel = undefined;
+          onLoad(state);
+        });
+        if (this.paused) this.pause(false);
         resolve();
       }), { once: true });
     });
@@ -64,17 +84,90 @@ export class ARRuntime {
   }
   async select(model: ModelEntry) {
     await this.ready;
-    if (!this.stopped) await this.loader?.load(model);
+    const key = `${model.id}:${model.url}`;
+    if (this.selectedModel === key) return;
+    this.selectedModel = key;
+    await this.loader?.load(model);
   }
-  close() {
-    if (this.stopped) return;
-    this.stopped = true;
-    this.listeners.abort();
-    this.loader?.dispose();
-    const video = document.querySelector<HTMLVideoElement>('#arjs-video');
-    if (video?.srcObject instanceof MediaStream) video.srcObject.getTracks().forEach((track) => track.stop());
-    // Preserve the tested full-session reset: AR.js owns window listeners and camera startup.
-    // Reload also terminates outstanding Draco workers and pending camera requests.
-    location.reload();
+
+  private stopVideo() {
+    const video = this.scene.systems.arjs?._arSession?.arSource.domElement as HTMLVideoElement | undefined;
+    if (!video) return;
+    if (video.srcObject instanceof MediaStream) video.srcObject.getTracks().forEach((track) => track.stop());
+    video.pause();
+    video.srcObject = null;
+    video.hidden = true;
+  }
+
+  pause(invalidateAttempt = true) {
+    this.paused = true;
+    if (invalidateAttempt) ++this.cameraAttempt;
+    const source = this.scene.systems.arjs?._arSession?.arSource;
+    if (source) source.ready = false;
+    this.stopVideo();
+    this.scene.pause();
+    this.scene.renderer?.setAnimationLoop(null);
+    this.scene.hidden = true;
+    document.body.classList.remove('camera-open');
+    // The same scene and model stay in memory; discard the previous camera's pose.
+    const marker = this.scene.querySelector('a-marker') as import('./types').Entity;
+    if (marker.components['smooth-marker-pose']) marker.components['smooth-marker-pose'].ready = false;
+    marker.object3D.visible = false;
+    const anchor = marker.components['arjs-anchor']?._arAnchor;
+    if (anchor) {
+      anchor.object3d.visible = false;
+      if (anchor.controls) anchor.controls.object3d.visible = false;
+    }
+  }
+
+  async resume() {
+    const attempt = ++this.cameraAttempt;
+    await this.ready;
+    // Avoid competing with AR.js's initial getUserMedia request if closed during startup.
+    await this.firstCamera;
+    if (attempt !== this.cameraAttempt) return false;
+    const source = this.scene.systems.arjs._arSession.arSource;
+    const video = source.domElement as HTMLVideoElement;
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: {
+          facingMode: 'environment',
+          width: { ideal: source.parameters.sourceWidth },
+          height: { ideal: source.parameters.sourceHeight },
+          ...(source.parameters.deviceId ? { deviceId: { exact: source.parameters.deviceId } } : {}),
+        },
+      });
+    } catch (error) {
+      if (attempt !== this.cameraAttempt) return false;
+      throw error;
+    }
+    if (attempt !== this.cameraAttempt) {
+      stream.getTracks().forEach((track) => track.stop());
+      return false;
+    }
+    video.srcObject = stream;
+    try { await video.play(); }
+    catch (error) {
+      stream.getTracks().forEach((track) => track.stop());
+      if (attempt !== this.cameraAttempt) return false;
+      throw error;
+    }
+    if (attempt !== this.cameraAttempt) {
+      stream.getTracks().forEach((track) => track.stop());
+      return false;
+    }
+    this.paused = false;
+    video.hidden = false;
+    this.scene.hidden = false;
+    document.body.classList.add('camera-open');
+    source.ready = true;
+    // The initial request may have failed before AR.js could initialize the tracker.
+    if (!this.videoInitialized) window.dispatchEvent(new CustomEvent('arjs-video-loaded', { detail: { component: video } }));
+    this.scene.play();
+    this.scene.renderer.setAnimationLoop(this.scene.render);
+    window.dispatchEvent(new Event('resize'));
+    return true;
   }
 }

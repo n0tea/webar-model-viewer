@@ -18,23 +18,39 @@ export default function App() {
   function select(model: ModelEntry) {
     setSelected(model);
     setCatalogOpen(false);
-    if (model.id !== selected.id || load.phase === 'error') void runtime.current?.select(model);
+    if (active && (model.id !== selected.id || load.phase === 'error')) void runtime.current?.select(model);
   }
   async function start() {
-    if (starting || runtime.current) return;
+    if (starting) return;
     setStarting(true);
     setIntroStatus('Загружаем режим AR…');
     try {
       const { prepareAR, ARRuntime } = await import('./ar/runtime');
       await prepareAR();
-      runtime.current = new ARRuntime(setLoad, setCameraStatus);
-      setActive(true);
+      if (runtime.current) {
+        setCameraStatus('Включаем камеру…');
+        setActive(true);
+        if (!await runtime.current.resume()) return;
+      } else {
+        runtime.current = new ARRuntime(setLoad, setCameraStatus);
+        setActive(true);
+      }
       setIntroStatus('');
       void runtime.current.select(selected);
       requestAnimationFrame(() => exit.current?.focus());
     } catch (error) {
+      runtime.current?.pause();
+      setActive(false);
       setIntroStatus(error instanceof Error ? error.message : 'Не удалось запустить AR. Попробуйте снова.');
     } finally { setStarting(false); }
+  }
+  function close() {
+    runtime.current?.pause();
+    setActive(false);
+    setCatalogOpen(false);
+    setStarting(false);
+    setIntroStatus('');
+    requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('#start')?.focus());
   }
   return <>
     {!active && <main id="intro">
@@ -47,13 +63,13 @@ export default function App() {
           <a href={assetUrl('markers/hiro.png')} target="_blank" rel="noopener">Открыть метку ↗</a></div>
       </section>
       <button id="start" className="primary" disabled={starting} onClick={start}>{starting ? 'Запускаем AR…' : `Открыть камеру · ${selected.name}`}</button>
-      <p className="hint">Модель загрузится после запуска камеры.</p>
+      <p className="hint">{load.phase === 'ready' ? 'Загруженная модель сохранена до смены модели или перезагрузки страницы.' : 'Модель загрузится после запуска камеры.'}</p>
       <p id="intro-status" role="status">{introStatus}</p>
     </main>}
     {active && <aside id="camera-controls" aria-label="Управление камерой">
       <div className="camera-top">
         <div className="camera-header"><div><strong>{selected.name}</strong><span id="model-caption">{load.phase === 'ready' ? 'Модель загружена' : load.phase === 'error' ? 'Ошибка загрузки' : 'Загружаем модель…'}</span></div>
-          <button id="exit" className="primary" ref={exit} onClick={() => runtime.current?.close()}>Закрыть камеру</button></div>
+          <button id="exit" className="primary" ref={exit} onClick={close}>Закрыть камеру</button></div>
         <button className="catalog-toggle" aria-expanded={catalogOpen} aria-controls="camera-catalog" onClick={() => setCatalogOpen(!catalogOpen)}>{catalogOpen ? 'Скрыть каталог ↑' : 'Выбрать модель ↓'}</button>
         {catalogOpen && <div id="camera-catalog"><Catalog selected={selected.id} onSelect={select} compact /></div>}
         <LoadProgress state={load} onRetry={() => void runtime.current?.select(selected)} />

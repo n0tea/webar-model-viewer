@@ -18,6 +18,9 @@ export interface Entity extends HTMLElement {
 export interface Scene extends Entity {
   canvas: HTMLCanvasElement;
   hasLoaded: boolean;
+  play(): void;
+  pause(): void;
+  render(time: number, frame?: any): void;
   renderer: Three.WebGLRenderer;
   camera: Three.PerspectiveCamera;
   systems: {
