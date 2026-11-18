@@ -1,2 +1,5 @@
 .vscode/
 ep20.glb
+node_modules/
+dist/
+*.local
