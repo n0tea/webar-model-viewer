@@ -143,6 +143,7 @@ body.camera-open {
 .camera-top { min-height: 0; overflow: auto; padding: 0 0 .3rem; }
 .camera-top button, #camera-catalog, .load-panel { pointer-events: auto; }
 .catalog-toggle { margin-top: .5rem; background: var(--surface); color: var(--accent); }
+.camera-menu-buttons { display: flex; flex-wrap: wrap; gap: 0 .5rem; }
 #camera-catalog { background: var(--surface); border-radius: .75rem; padding: .85rem; margin-top: .5rem; }
 .catalog-compact { margin: 0; }
 .catalog-compact .model-preview img { max-height: 8rem; }
@@ -160,6 +161,7 @@ progress { display: block; width: 100%; height: .6rem; margin-top: .7rem; accent
 .animation-timeline { width: 100%; min-height: 2.5rem; margin: .25rem 0; accent-color: var(--accent); cursor: pointer; }
 .animation-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
 .animation-buttons > button { font-size: .85rem; }
+.playback-toggle { min-width: 2.75rem; display: grid; place-items: center; padding: .6rem; }
 .animation-buttons > button:not(.primary) { background: #9aa5b425; color: var(--text); }
 .animation-panel label { display: flex; align-items: center; gap: .5rem; color: var(--text-muted); font-size: .85rem; }
 .animation-panel select { min-height: 2.75rem; background: var(--background); border: 1px solid #9aa5b440; color: var(--text); border-radius: .5rem; padding: .4rem; font: inherit; }
