@@ -5,6 +5,8 @@ import { Catalog } from './components/Catalog';
 import { LoadProgress } from './components/LoadProgress';
 import type { ARRuntime } from './ar/runtime';
 import type { LoadState } from './ar/model-loader';
+import { emptyAnimation, type AnimationState } from './ar/animation';
+import { AnimationControls } from './components/AnimationControls';
 
 export default function App() {
   const [selected, setSelected] = useState(models[0]);
@@ -14,6 +16,7 @@ export default function App() {
   const [introStatus, setIntroStatus] = useState('');
   const [cameraStatus, setCameraStatus] = useState('Разрешите доступ к камере.');
   const [load, setLoad] = useState<LoadState>({ phase: 'idle' });
+  const [animation, setAnimation] = useState<AnimationState>(emptyAnimation);
   const runtime = useRef<ARRuntime | null>(null);
   const exit = useRef<HTMLButtonElement>(null);
   function select(model: ModelEntry) {
@@ -34,7 +37,7 @@ export default function App() {
         if (!await runtime.current.resume()) return;
         setCameraStatus('Поместите метку в кадр.');
       } else {
-        runtime.current = new ARRuntime(setLoad, setCameraStatus);
+        runtime.current = new ARRuntime(setLoad, setCameraStatus, setAnimation);
         setActive(true);
       }
       setIntroStatus('');
@@ -75,6 +78,12 @@ export default function App() {
         <button className="catalog-toggle" aria-expanded={catalogOpen} aria-controls="camera-catalog" onClick={() => setCatalogOpen(!catalogOpen)}>{catalogOpen ? 'Скрыть каталог' : 'Выбрать модель'}</button>
         {catalogOpen && <div id="camera-catalog"><Catalog selected={selected.id} onSelect={select} compact /></div>}
         <LoadProgress state={load} onRetry={() => void runtime.current?.select(selected)} />
+        {load.phase === 'ready' && <AnimationControls state={animation}
+          onToggle={() => runtime.current?.animation.toggle()}
+          onReset={() => runtime.current?.animation.reset()}
+          onSeek={(time) => runtime.current?.animation.seek(time)}
+          onSpeed={(speed) => runtime.current?.animation.speed(speed)}
+          onSelect={(index) => runtime.current?.animation.select(index)} />}
       </div>
       <p id="camera-status" role="status">{cameraStatus}</p>
     </aside>}

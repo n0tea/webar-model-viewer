@@ -3,6 +3,7 @@ import { fitCameraViewport, registerPoseSmoothing } from './camera';
 import { ModelLoader, type LoadState } from './model-loader';
 import type { Scene } from './types';
 import { marker as target } from './marker';
+import { ModelAnimation, type AnimationState } from './animation';
 
 let scripts: Promise<void> | undefined;
 function loadScript(src: string) {
@@ -22,11 +23,21 @@ export async function prepareAR() {
     if (!window.AFRAME.systems.arjs) await loadScript(assetUrl('vendor/arjs/aframe-ar.js'));
     if (!window.AFRAME.systems.arjs) throw new Error('Не удалось запустить AR.js.');
     registerPoseSmoothing();
+    if (!window.AFRAME.components['model-animation-player']) {
+      window.AFRAME.registerComponent('model-animation-player', {
+        player: undefined as ModelAnimation | undefined,
+        tick(this: { player?: ModelAnimation; el: Scene }, _time: number, delta: number) {
+          const marker = this.el.querySelector('a-marker') as import('./types').Entity | null;
+          if (marker?.object3D.visible) this.player?.update(delta);
+        },
+      });
+    }
   })().catch((error) => { scripts = undefined; throw error; });
   return scripts;
 }
 export class ARRuntime {
   readonly scene: Scene;
+  readonly animation: ModelAnimation;
   private loader?: ModelLoader;
   private paused = false;
   private cameraAttempt = 0;
@@ -35,9 +46,11 @@ export class ARRuntime {
   private videoInitialized = false;
   private ready: Promise<void>;
 
-  constructor(onLoad: (state: LoadState) => void, onStatus: (status: string) => void) {
+  constructor(onLoad: (state: LoadState) => void, onStatus: (status: string) => void, onAnimation: (state: AnimationState) => void) {
+    this.animation = new ModelAnimation(onAnimation);
     const scene = this.scene = document.createElement('a-scene') as Scene;
     scene.setAttribute('embedded', '');
+    scene.setAttribute('model-animation-player', '');
     scene.setAttribute('xr-mode-ui', 'enabled: false');
     scene.setAttribute('renderer', 'alpha: true; antialias: auto');
     scene.setAttribute('gltf-model', `dracoDecoderPath: ${assetUrl('vendor/draco/')}`);
@@ -72,10 +85,11 @@ export class ARRuntime {
     this.ready = new Promise((resolve) => {
       scene.addEventListener('renderstart', () => queueMicrotask(() => {
         fitCameraViewport(scene);
+        scene.components['model-animation-player'].player = this.animation;
         this.loader = new ModelLoader(scene, (state) => {
           if (state.phase === 'error') this.selectedModel = undefined;
           onLoad(state);
-        });
+        }, this.animation);
         if (this.paused) this.pause(false);
         resolve();
       }), { once: true });
