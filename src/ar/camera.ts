@@ -1,4 +1,5 @@
 import type { Entity, Scene } from './types';
+import { getCameraFrame, TRACKING_SIZE } from './camera-frame';
 
 export function registerPoseSmoothing() {
   if (window.AFRAME.components['smooth-marker-pose']) return;
@@ -68,18 +69,28 @@ export function fitCameraViewport(scene: Scene) {
   const poseSmoothing = (scene.querySelector('a-marker') as Entity).components['smooth-marker-pose'];
   context.addEventListener('sourceProcessed', () => poseSmoothing.capturePose());
 
-  // The tracker must process the same image aspect as the rendered video.
-  // AR.js's portrait path crops the frame again, independently of the CSS crop.
+  // A phone may swap videoWidth/videoHeight when rotated. ARToolkit's native
+  // dimensions cannot change in place without losing marker registrations.
+  // Keep its frame square and letterbox the video, preserving square pixels.
+  const trackingFrame = document.createElement('canvas');
+  trackingFrame.width = trackingFrame.height = TRACKING_SIZE;
+  const trackingCanvas = trackingFrame.getContext('2d', { alpha: false })!;
+  context._updateArtoolkit = function (video: HTMLVideoElement) {
+    const frame = getCameraFrame(video.videoWidth, video.videoHeight);
+    if (!frame) return;
+    trackingCanvas.fillStyle = 'white';
+    trackingCanvas.fillRect(0, 0, TRACKING_SIZE, TRACKING_SIZE);
+    trackingCanvas.drawImage(video, frame.x, frame.y, frame.width, frame.height);
+    context.arController.process(trackingFrame);
+  };
+
+  // Force AR.js's direct-copy path: the frame has already been normalized.
   const initializeContext = context.init.bind(context);
   context.init = function (onCompleted?: () => void) {
     const video = source.domElement;
     const initialize = () => {
-      const scale = 640 / Math.max(video.videoWidth, video.videoHeight);
-      context.parameters.canvasWidth = Math.round(video.videoWidth * scale);
-      context.parameters.canvasHeight = Math.round(video.videoHeight * scale);
-      const cameraParametersUrl = createCameraParameters(
-        context.parameters.canvasWidth, context.parameters.canvasHeight,
-      );
+      context.parameters.canvasWidth = context.parameters.canvasHeight = TRACKING_SIZE;
+      const cameraParametersUrl = createCameraParameters(TRACKING_SIZE, TRACKING_SIZE);
       context.parameters.cameraParametersUrl = cameraParametersUrl;
       initializeContext(() => {
         URL.revokeObjectURL(cameraParametersUrl);
@@ -87,6 +98,7 @@ export function fitCameraViewport(scene: Scene) {
         // Use ARToolkit's direct image copy in both camera orientations.
         context.arController.orientation = 'landscape';
         context.arController.options.orientation = 'landscape';
+        session.onResize();
       });
     };
     if (video.videoWidth && video.videoHeight) initialize();
@@ -106,7 +118,15 @@ export function fitCameraViewport(scene: Scene) {
   // AR.js calls this every render frame. Keep DOM sizing in resize handlers.
   session.onResize = function () {
     if (!context.arController) return;
+    const video = source.domElement;
+    const frame = getCameraFrame(video.videoWidth, video.videoHeight);
+    if (!frame) return;
     scene.camera.projectionMatrix.fromArray(context.arController.getCameraMatrix());
+    // Remove tracker padding from the projection. Video and 3D then share the
+    // same uncropped frame before the same viewport cover crop is applied.
+    const matrix = scene.camera.projectionMatrix.elements;
+    for (const index of [0, 4, 8, 12]) matrix[index] *= frame.projectionX;
+    for (const index of [1, 5, 9, 13]) matrix[index] *= frame.projectionY;
     scene.camera.projectionMatrixInverse.copy(scene.camera.projectionMatrix).invert();
   };
 
@@ -125,10 +145,13 @@ export function fitCameraViewport(scene: Scene) {
       scene.renderer.setSize(width, height, false);
     }
     source.copyElementSizeTo(scene.canvas);
+    session.onResize();
   }
 
   source.domElement.addEventListener('loadedmetadata', resize);
   source.domElement.addEventListener('resize', resize);
   window.addEventListener('resize', resize);
+  window.visualViewport?.addEventListener('resize', resize);
+  window.screen.orientation?.addEventListener('change', () => requestAnimationFrame(resize));
   resize();
 }
