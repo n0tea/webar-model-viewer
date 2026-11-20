@@ -1,6 +1,7 @@
 import type { ModelEntry } from '../catalog';
 import type { GLTF, ModelObject, Scene } from './types';
 import type { Material, Texture, BufferGeometry, SkinnedMesh } from 'three';
+import type { ModelAnimation } from './animation';
 
 export type LoadState =
   | { phase: 'idle' }
@@ -48,13 +49,16 @@ export class ModelLoader {
 
   private scene: Scene;
   private notify: (state: LoadState) => void;
+  private animation?: ModelAnimation;
 
-  constructor(scene: Scene, notify: (state: LoadState) => void) {
+  constructor(scene: Scene, notify: (state: LoadState) => void, animation?: ModelAnimation) {
     this.scene = scene;
     this.notify = notify;
+    this.animation = animation;
   }
 
   private release() {
+    this.animation?.clear();
     const entity = this.scene.querySelector('#locomotive-model') as import('./types').Entity;
     const frame = this.scene.querySelector('#model-frame') as import('./types').Entity;
     frame.object3D.visible = false;
@@ -125,6 +129,7 @@ export class ModelLoader {
       frame.object3D.scale.setScalar(entry.markerSpan / span);
       this.current = model;
       entity.setObject3D('mesh', model);
+      this.animation?.attach(model, decoded.animations);
       frame.object3D.visible = true;
       frame.setAttribute('visible', 'true');
       this.notify({ phase: 'ready' });

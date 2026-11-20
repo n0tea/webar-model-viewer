@@ -5,20 +5,25 @@ import { Catalog } from './components/Catalog';
 import { LoadProgress } from './components/LoadProgress';
 import type { ARRuntime } from './ar/runtime';
 import type { LoadState } from './ar/model-loader';
+import { emptyAnimation, type AnimationState } from './ar/animation';
+import { AnimationControls } from './components/AnimationControls';
 
 export default function App() {
   const [selected, setSelected] = useState(models[0]);
   const [starting, setStarting] = useState(false);
   const [active, setActive] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
+  const [animationOpen, setAnimationOpen] = useState(false);
   const [introStatus, setIntroStatus] = useState('');
   const [cameraStatus, setCameraStatus] = useState('Разрешите доступ к камере.');
   const [load, setLoad] = useState<LoadState>({ phase: 'idle' });
+  const [animation, setAnimation] = useState<AnimationState>(emptyAnimation);
   const runtime = useRef<ARRuntime | null>(null);
   const exit = useRef<HTMLButtonElement>(null);
   function select(model: ModelEntry) {
     setSelected(model);
     setCatalogOpen(false);
+    setAnimationOpen(false);
     if (active && (model.id !== selected.id || load.phase === 'error')) void runtime.current?.select(model);
   }
   async function start() {
@@ -34,7 +39,7 @@ export default function App() {
         if (!await runtime.current.resume()) return;
         setCameraStatus('Поместите метку в кадр.');
       } else {
-        runtime.current = new ARRuntime(setLoad, setCameraStatus);
+        runtime.current = new ARRuntime(setLoad, setCameraStatus, setAnimation);
         setActive(true);
       }
       setIntroStatus('');
@@ -50,6 +55,7 @@ export default function App() {
     runtime.current?.pause();
     setActive(false);
     setCatalogOpen(false);
+    setAnimationOpen(false);
     setStarting(false);
     setIntroStatus('');
     requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('#start')?.focus());
@@ -72,9 +78,18 @@ export default function App() {
       <div className="camera-top">
         <div className="camera-header"><div><strong>{selected.name}</strong><span id="model-caption">{load.phase === 'ready' ? 'Модель загружена' : load.phase === 'error' ? 'Ошибка загрузки' : 'Загружаем модель…'}</span></div>
           <button id="exit" className="primary" ref={exit} onClick={close}>Закрыть камеру</button></div>
-        <button className="catalog-toggle" aria-expanded={catalogOpen} aria-controls="camera-catalog" onClick={() => setCatalogOpen(!catalogOpen)}>{catalogOpen ? 'Скрыть каталог' : 'Выбрать модель'}</button>
+        <div className="camera-menu-buttons">
+          <button className="catalog-toggle" aria-expanded={catalogOpen} aria-controls="camera-catalog" onClick={() => { setCatalogOpen(!catalogOpen); setAnimationOpen(false); }}>{catalogOpen ? 'Скрыть каталог' : 'Выбрать модель'}</button>
+          {load.phase === 'ready' && animation.clips.length > 0 && <button className="catalog-toggle" aria-expanded={animationOpen} aria-controls="animation-controls" onClick={() => { setAnimationOpen(!animationOpen); setCatalogOpen(false); }}>Анимация</button>}
+        </div>
         {catalogOpen && <div id="camera-catalog"><Catalog selected={selected.id} onSelect={select} compact /></div>}
         <LoadProgress state={load} onRetry={() => void runtime.current?.select(selected)} />
+        {load.phase === 'ready' && animationOpen && <div id="animation-controls"><AnimationControls state={animation}
+          onToggle={() => runtime.current?.animation.toggle()}
+          onReset={() => runtime.current?.animation.reset()}
+          onSeek={(time) => runtime.current?.animation.seek(time)}
+          onSpeed={(speed) => runtime.current?.animation.speed(speed)}
+          onSelect={(index) => runtime.current?.animation.select(index)} /></div>}
       </div>
       <p id="camera-status" role="status">{cameraStatus}</p>
     </aside>}

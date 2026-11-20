@@ -1,0 +1,60 @@
+# Copy this file to .github/workflows/deploy.yml through GitHub once.
+name: Build and deploy stable and pre-release
+on:
+  push:
+    branches: [main, pre-release]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/pre-release'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout stable branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: main
+          path: main-site
+          persist-credentials: false
+      - name: Checkout preview branch
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: pre-release
+          path: preview-site
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            main-site/package-lock.json
+            preview-site/package-lock.json
+      - name: Check and build stable version
+        run: |
+          npm ci --prefix main-site
+          npm test --prefix main-site
+          npm run build --prefix main-site
+      - name: Check and build preview version
+        run: |
+          npm ci --prefix preview-site
+          npm test --prefix preview-site
+          npm run build --prefix preview-site
+      - name: Assemble both applications
+        run: |
+          MAIN_COMMIT="$(git -C main-site rev-parse HEAD)" PREVIEW_COMMIT="$(git -C preview-site rev-parse HEAD)" node main-site/scripts/assemble-pages.mjs main-site/dist preview-site/dist pages-output
+      - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
+        with:
+          path: pages-output
+      - name: Deploy both versions together
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5
